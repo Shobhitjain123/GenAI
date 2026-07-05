@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { sendChat } from "./api";
+import { ChatError, fetchUsage, sendChat, type UsageInfo } from "./api";
 import { PERSONAS, PERSONA_LIST } from "./personas";
 import type { ChatMessage, MessageRole, PersonaId } from "./types";
 
@@ -73,6 +73,7 @@ function App() {
   const [selectedHistoryId, setSelectedHistoryId] = useState<string | null>(
     null,
   );
+  const [usage, setUsage] = useState<UsageInfo | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const personaDropdownRef = useRef<HTMLDivElement>(null);
@@ -85,6 +86,11 @@ function App() {
   const activePersonaIndex = PERSONA_LIST.findIndex(
     (persona) => persona.id === activePersonaId,
   );
+  const isLimitReached = usage !== null && usage.remaining <= 0;
+
+  useEffect(() => {
+    fetchUsage().then(setUsage);
+  }, []);
 
   useEffect(() => {
     if (suppressAutoScrollRef.current) {
@@ -184,7 +190,7 @@ function App() {
     event.preventDefault();
 
     const trimmed = input.trim();
-    if (!trimmed || isTyping) return;
+    if (!trimmed || isTyping || isLimitReached) return;
 
     const userMessage: ChatMessage = {
       id: createId(),
@@ -204,10 +210,12 @@ function App() {
     setIsTyping(true);
 
     try {
-      const reply = await sendChat(
+      const { reply, usage: updatedUsage } = await sendChat(
         activePersona.systemPrompt,
         toOpenAIMessages(updatedMessages),
       );
+
+      if (updatedUsage) setUsage(updatedUsage);
 
       const personaMessage: ChatMessage = {
         id: createId(),
@@ -221,6 +229,8 @@ function App() {
         [activePersonaId]: [...prev[activePersonaId], personaMessage],
       }));
     } catch (error) {
+      if (error instanceof ChatError && error.usage) setUsage(error.usage);
+
       const errorMessage: ChatMessage = {
         id: createId(),
         role: "persona",
@@ -302,6 +312,15 @@ function App() {
             </span>
           </p>
           <p className="mt-1">msgs: {messages.length}</p>
+          {usage && (
+            <p
+              className={`mt-1 ${
+                isLimitReached ? "text-terminal-red" : ""
+              }`}
+            >
+              remaining today: {usage.remaining}/{usage.limit}
+            </p>
+          )}
         </div>
       </aside>
 
@@ -469,6 +488,16 @@ function App() {
 
         <footer className="border-t border-terminal-border bg-terminal-panel px-5 py-4">
           <form onSubmit={handleSubmit} className="mx-auto max-w-3xl">
+            {isLimitReached && (
+              <p className="mb-2 text-xs text-terminal-red">
+                Daily chat limit reached ({usage?.limit} messages/day). Please
+                come back after{" "}
+                {usage
+                  ? new Date(usage.resetAt).toLocaleString()
+                  : "the limit resets"}
+                .
+              </p>
+            )}
             <div className="flex items-center gap-2 rounded border border-terminal-border bg-terminal-bg px-3 py-2">
               <span className="shrink-0 text-sm text-terminal-green">$</span>
               <span className="shrink-0 text-sm text-terminal-amber">
@@ -479,8 +508,12 @@ function App() {
                 type="text"
                 value={input}
                 onChange={(event) => setInput(event.target.value)}
-                placeholder="Type your message and press Enter..."
-                disabled={isTyping}
+                placeholder={
+                  isLimitReached
+                    ? "Daily chat limit reached..."
+                    : "Type your message and press Enter..."
+                }
+                disabled={isTyping || isLimitReached}
                 className="min-w-0 flex-1 bg-transparent text-sm text-[#c9d1d9] outline-none placeholder:text-terminal-muted disabled:opacity-50"
               />
               <span className="hidden text-xs text-terminal-muted sm:inline">
