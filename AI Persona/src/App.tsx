@@ -241,13 +241,6 @@ function App() {
                 </span>
                 . Type a message in the terminal below and press Enter.
               </p>
-              <p className="mt-4 max-w-lg rounded border border-terminal-border bg-terminal-panel px-4 py-3 text-left text-xs text-terminal-muted">
-                System prompt loaded from{" "}
-                <code className="text-terminal-amber">src/personas.ts</code>.
-                Edit the{" "}
-                <code className="text-terminal-amber">systemPrompt</code> field
-                for {activePersona.name} to define persona behavior.
-              </p>
             </div>
           ) : (
             <div className="mx-auto flex max-w-3xl flex-col gap-4">
