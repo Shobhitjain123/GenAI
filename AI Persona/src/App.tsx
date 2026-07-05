@@ -70,9 +70,14 @@ function App() {
   const [isTyping, setIsTyping] = useState(false);
   const [isPersonaMenuOpen, setIsPersonaMenuOpen] = useState(false);
   const [focusedPersonaIndex, setFocusedPersonaIndex] = useState(0);
+  const [selectedHistoryId, setSelectedHistoryId] = useState<string | null>(
+    null,
+  );
   const chatEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const personaDropdownRef = useRef<HTMLDivElement>(null);
+  const messageRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const suppressAutoScrollRef = useRef(false);
 
   const activePersona = PERSONAS[activePersonaId];
   const messages = histories[activePersonaId];
@@ -82,12 +87,26 @@ function App() {
   );
 
   useEffect(() => {
+    if (suppressAutoScrollRef.current) {
+      suppressAutoScrollRef.current = false;
+      return;
+    }
+
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isTyping]);
 
   useEffect(() => {
+    setSelectedHistoryId(null);
     inputRef.current?.focus();
   }, [activePersonaId]);
+
+  function setMessageRef(messageId: string, element: HTMLDivElement | null) {
+    if (element) {
+      messageRefs.current.set(messageId, element);
+    } else {
+      messageRefs.current.delete(messageId);
+    }
+  }
 
   useEffect(() => {
     if (!isPersonaMenuOpen) return;
@@ -181,6 +200,7 @@ function App() {
       [activePersonaId]: updatedMessages,
     }));
     setInput("");
+    setSelectedHistoryId(null);
     setIsTyping(true);
 
     try {
@@ -220,9 +240,12 @@ function App() {
     }
   }
 
-  function handleHistoryClick(content: string) {
-    setInput(content);
-    inputRef.current?.focus();
+  function handleHistoryClick(messageId: string) {
+    suppressAutoScrollRef.current = true;
+    setSelectedHistoryId(messageId);
+    messageRefs.current
+      .get(messageId)
+      ?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
   return (
@@ -242,12 +265,20 @@ function App() {
             </p>
           ) : (
             <ul className="space-y-1">
-              {userHistory.map((message, index) => (
+              {userHistory.map((message, index) => {
+                const isSelected = selectedHistoryId === message.id;
+
+                return (
                 <li key={message.id}>
                   <button
                     type="button"
-                    onClick={() => handleHistoryClick(message.content)}
-                    className="w-full rounded border border-transparent px-2 py-2 text-left text-xs transition hover:border-terminal-border hover:bg-terminal-bg"
+                    onClick={() => handleHistoryClick(message.id)}
+                    aria-current={isSelected ? "true" : undefined}
+                    className={`w-full rounded border px-2 py-2 text-left text-xs transition hover:border-terminal-border hover:bg-terminal-bg ${
+                      isSelected
+                        ? "border-terminal-amber/50 bg-terminal-bg"
+                        : "border-transparent"
+                    }`}
                   >
                     <span className="text-terminal-amber">
                       [{String(index + 1).padStart(2, "0")}]
@@ -257,7 +288,8 @@ function App() {
                     </span>
                   </button>
                 </li>
-              ))}
+                );
+              })}
             </ul>
           )}
         </div>
@@ -381,7 +413,9 @@ function App() {
               {messages.map((message) => (
                 <div
                   key={message.id}
-                  className={`flex items-end gap-2 ${
+                  ref={(element) => setMessageRef(message.id, element)}
+                  id={`message-${message.id}`}
+                  className={`flex scroll-mt-4 items-end gap-2 ${
                     message.role === "user" ? "justify-end" : "justify-start"
                   }`}
                 >
