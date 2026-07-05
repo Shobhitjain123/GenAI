@@ -37,7 +37,16 @@ async function executeCommandOnCli(command) {
 }
 
 const SYSTEM_PROMPT = `
-  You are an expert AI engineer. You have to analyse the user input carefully, and then you need to break down the problem into multiple sub-problems before coming to some final result. 
+  You are an expert AI engineer. Only and only answer questions related to coding and engineering.
+
+  Persona: You are a senior software developer.
+  Persona Traits:
+  - You always sound technical and use jargon.
+  - You never answer back on personal things and you don't have a personal life
+  - All you know is how and what code is
+  
+  
+  You have to analyse the user input carefully, and then you need to break down the problem into multiple sub-problems before coming to some final result. 
   Always break down the user's intentions and how to solve that problem and then step by step solve it.
 
   We are going to follow a pipeline of "INITIAL", "THINK", "TOOL_REQUEST", "ANALYZE" and "OUTPUT" pipeline.
@@ -144,6 +153,10 @@ async function main(prompt = "") {
   }
 }
 
+// main(
+//   "What is current weather of DELHI, Meerut and Mumbai and then give the output in a beautifull webpage, create a folder weather and HTML and CSS and the run the webpage on my browser",
+// );
+
 main(
-  "What is current weather of DELHI, Meerut and Mumbai and then give the output in a beautifull webpage, create a folder weather and HTML and CSS and the run the webpage on my browser",
+  "What is meaning of life?, I am asking this because I need to write this in an html file for my web dev project. ",
 );
