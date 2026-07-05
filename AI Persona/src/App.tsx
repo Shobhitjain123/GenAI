@@ -68,12 +68,18 @@ function App() {
   const [histories, setHistories] = useState(createInitialHistories);
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
+  const [isPersonaMenuOpen, setIsPersonaMenuOpen] = useState(false);
+  const [focusedPersonaIndex, setFocusedPersonaIndex] = useState(0);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const personaDropdownRef = useRef<HTMLDivElement>(null);
 
   const activePersona = PERSONAS[activePersonaId];
   const messages = histories[activePersonaId];
   const userHistory = messages.filter((message) => message.role === "user");
+  const activePersonaIndex = PERSONA_LIST.findIndex(
+    (persona) => persona.id === activePersonaId,
+  );
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -82,6 +88,78 @@ function App() {
   useEffect(() => {
     inputRef.current?.focus();
   }, [activePersonaId]);
+
+  useEffect(() => {
+    if (!isPersonaMenuOpen) return;
+
+    function handlePointerDown(event: PointerEvent) {
+      if (
+        personaDropdownRef.current &&
+        !personaDropdownRef.current.contains(event.target as Node)
+      ) {
+        setIsPersonaMenuOpen(false);
+      }
+    }
+
+    document.addEventListener("pointerdown", handlePointerDown);
+
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+    };
+  }, [isPersonaMenuOpen]);
+
+  function openPersonaMenu() {
+    setFocusedPersonaIndex(Math.max(activePersonaIndex, 0));
+    setIsPersonaMenuOpen(true);
+  }
+
+  function selectPersona(personaId: PersonaId) {
+    setActivePersonaId(personaId);
+    setIsPersonaMenuOpen(false);
+  }
+
+  function handlePersonaKeyDown(event: React.KeyboardEvent) {
+    if (event.key === "Escape") {
+      setIsPersonaMenuOpen(false);
+      return;
+    }
+
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+
+      if (!isPersonaMenuOpen) {
+        openPersonaMenu();
+        return;
+      }
+
+      setFocusedPersonaIndex((index) => (index + 1) % PERSONA_LIST.length);
+      return;
+    }
+
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+
+      if (!isPersonaMenuOpen) {
+        openPersonaMenu();
+        return;
+      }
+
+      setFocusedPersonaIndex(
+        (index) => (index - 1 + PERSONA_LIST.length) % PERSONA_LIST.length,
+      );
+      return;
+    }
+
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+
+      if (isPersonaMenuOpen) {
+        selectPersona(PERSONA_LIST[focusedPersonaIndex].id);
+      } else {
+        openPersonaMenu();
+      }
+    }
+  }
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -211,20 +289,76 @@ function App() {
             >
               select persona:
             </label>
-            <select
-              id="persona-select"
-              value={activePersonaId}
-              onChange={(event) =>
-                setActivePersonaId(event.target.value as PersonaId)
-              }
-              className="rounded border border-terminal-border bg-terminal-bg px-3 py-1.5 text-sm text-[#c9d1d9] outline-none focus:border-terminal-green"
+            <div
+              ref={personaDropdownRef}
+              className="relative"
+              onKeyDown={handlePersonaKeyDown}
             >
-              {PERSONA_LIST.map((persona) => (
-                <option key={persona.id} value={persona.id}>
-                  {persona.name}
-                </option>
-              ))}
-            </select>
+              <button
+                id="persona-select"
+                type="button"
+                aria-haspopup="listbox"
+                aria-expanded={isPersonaMenuOpen}
+                aria-controls="persona-options"
+                onClick={() =>
+                  isPersonaMenuOpen
+                    ? setIsPersonaMenuOpen(false)
+                    : openPersonaMenu()
+                }
+                className="flex h-9 min-w-36 items-center justify-between gap-3 rounded border border-terminal-border bg-terminal-bg px-3 text-sm text-[#c9d1d9] outline-none transition hover:border-terminal-green/70 focus:border-terminal-green"
+              >
+                <span>{activePersona.name}</span>
+                <svg
+                  viewBox="0 0 20 20"
+                  className={`h-4 w-4 text-terminal-muted transition ${
+                    isPersonaMenuOpen ? "rotate-180" : ""
+                  }`}
+                  fill="currentColor"
+                  aria-hidden="true"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+              </button>
+
+              {isPersonaMenuOpen && (
+                <ul
+                  id="persona-options"
+                  role="listbox"
+                  aria-labelledby="persona-select"
+                  className="absolute right-0 z-20 mt-2 w-full overflow-hidden rounded border border-terminal-border bg-terminal-bg py-1 text-sm shadow-lg shadow-black/30"
+                >
+                  {PERSONA_LIST.map((persona, index) => {
+                    const isSelected = persona.id === activePersonaId;
+                    const isFocused = index === focusedPersonaIndex;
+
+                    return (
+                      <li
+                        key={persona.id}
+                        role="option"
+                        aria-selected={isSelected}
+                        onMouseEnter={() => setFocusedPersonaIndex(index)}
+                        onClick={() => selectPersona(persona.id)}
+                        className={`cursor-pointer px-3 py-2 transition ${
+                          isSelected
+                            ? "bg-terminal-green/10 text-terminal-green"
+                            : "text-[#c9d1d9]"
+                        } ${
+                          isFocused
+                            ? "bg-terminal-panel text-terminal-green"
+                            : "hover:bg-terminal-panel"
+                        }`}
+                      >
+                        {persona.name}
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
           </div>
         </header>
 
